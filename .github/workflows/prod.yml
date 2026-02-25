@@ -20,6 +20,9 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Print deployment context
         run: |
           echo "Starting production deployment"
@@ -35,18 +38,29 @@ jobs:
       - name: Print DORA deployment event
         if: ${{ always() }}
         run: |
+          STATUS="${{ job.status }}"
+          RUN_STARTED_AT="${GITHUB_RUN_STARTED_AT:-$(date -u +"%Y-%m-%dT%H:%M:%SZ")}"
           COMPLETED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-          PAYLOAD="$(cat <<EOF
-          {
-            "event_type": "deployment_finished",
-            "repo": "${{ github.repository }}",
-            "environment": "production",
-            "status": "${{ job.status }}",
-            "run_id": "${{ github.run_id }}",
-            "sha": "${{ github.sha }}",
-            "completed_at": "${COMPLETED_AT}"
-          }
-          EOF
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          PAYLOAD="$(
+            python3 scripts/dora_payload.py \
+              --environment "production" \
+              --is-production "true" \
+              --status "$STATUS" \
+              --repo "${{ github.repository }}" \
+              --run-id "${{ github.run_id }}" \
+              --run-attempt "${{ github.run_attempt }}" \
+              --run-number "${{ github.run_number }}" \
+              --workflow "${{ github.workflow }}" \
+              --job "deploy" \
+              --actor "${{ github.actor }}" \
+              --ref-name "${{ github.ref_name }}" \
+              --sha "${{ github.sha }}" \
+              --run-started-at "$RUN_STARTED_AT" \
+              --completed-at "$COMPLETED_AT" \
+              --run-url "$RUN_URL" \
+              --github-token "${{ github.token }}"
           )"
 
           echo "DORA payload:"
