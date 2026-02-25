@@ -31,3 +31,30 @@ jobs:
           echo "Deploying app to production..."
           sleep 3
           echo "Production deployment completed."
+
+      - name: Print DORA deployment event
+        if: ${{ always() }}
+        run: |
+          COMPLETED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          PAYLOAD="$(cat <<EOF
+          {
+            "event_type": "deployment_finished",
+            "repo": "${{ github.repository }}",
+            "environment": "production",
+            "status": "${{ job.status }}",
+            "run_id": "${{ github.run_id }}",
+            "sha": "${{ github.sha }}",
+            "completed_at": "${COMPLETED_AT}"
+          }
+          EOF
+          )"
+
+          echo "DORA payload:"
+          echo "$PAYLOAD"
+          {
+            echo "## DORA Deployment Event"
+            echo ""
+            echo "\`\`\`json"
+            echo "$PAYLOAD"
+            echo "\`\`\`"
+          } >> "$GITHUB_STEP_SUMMARY"
