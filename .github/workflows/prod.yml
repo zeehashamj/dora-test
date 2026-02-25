@@ -1,0 +1,33 @@
+name: Prod Deploy
+
+on:
+  workflow_call:
+    inputs:
+      triggered_by:
+        description: "User who triggered deployment"
+        required: true
+        type: string
+      source_ref:
+        description: "Git ref selected for deployment"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Print deployment context
+        run: |
+          echo "Starting production deployment"
+          echo "Triggered by: ${{ inputs.triggered_by }}"
+          echo "Source ref: ${{ inputs.source_ref }}"
+
+      - name: Simulate production deployment
+        run: |
+          echo "Deploying app to production..."
+          sleep 3
+          echo "Production deployment completed."

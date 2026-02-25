@@ -1,0 +1,33 @@
+name: Staging Deploy
+
+on:
+  workflow_call:
+    inputs:
+      triggered_by:
+        description: "User who triggered deployment"
+        required: true
+        type: string
+      source_ref:
+        description: "Git ref selected for deployment"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Print deployment context
+        run: |
+          echo "Starting staging deployment"
+          echo "Triggered by: ${{ inputs.triggered_by }}"
+          echo "Source ref: ${{ inputs.source_ref }}"
+
+      - name: Simulate staging deployment
+        run: |
+          echo "Deploying app to staging..."
+          sleep 3
+          echo "Staging deployment completed."

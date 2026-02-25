@@ -1,0 +1,30 @@
+name: Main Deploy Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      deploy_target:
+        description: "Select deployment target"
+        required: true
+        type: choice
+        options:
+          - staging
+          - prod
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-staging:
+    if: ${{ inputs.deploy_target == 'staging' }}
+    uses: ./.github/workflows/staging.yml
+    with:
+      triggered_by: ${{ github.actor }}
+      source_ref: ${{ github.ref_name }}
+
+  deploy-prod:
+    if: ${{ inputs.deploy_target == 'prod' }}
+    uses: ./.github/workflows/prod.yml
+    with:
+      triggered_by: ${{ github.actor }}
+      source_ref: ${{ github.ref_name }}
