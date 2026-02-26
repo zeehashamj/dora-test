@@ -28,7 +28,6 @@ pipeline:
                           echo "Starting staging deployment"
                           echo "Branch: <+codebase.branch>"
                           echo "Commit: <+codebase.commitSha>"
-                  timeout: 5m
 
               - step:
                   name: Simulate Staging Deployment
@@ -44,4 +43,3 @@ pipeline:
                           echo "Deploying app to staging..."
                           sleep 3
                           echo "Staging deployment completed."
-                  timeout: 5m
