@@ -1,0 +1,151 @@
+pipeline:
+  name: Staging Deploy
+  identifier: staging_deploy
+  projectIdentifier: <+input>
+  orgIdentifier: <+input>
+  tags:
+    environment: staging
+  properties:
+    ci:
+      codebase:
+        connectorRef: <+input>
+        repoName: <+input>
+        build: <+input>
+
+  variables:
+    - name: triggered_by
+      type: String
+      description: User who triggered deployment
+      required: true
+      value: <+input>
+    - name: source_ref
+      type: String
+      description: Git ref selected for deployment
+      required: true
+      value: <+input>
+
+  stages:
+    - stage:
+        name: Staging Deployment
+        identifier: staging_deployment
+        type: Deployment
+        spec:
+          deploymentType: Custom
+          environment:
+            environmentRef: staging
+            deployToAll: false
+            infrastructureDefinitions:
+              - identifier: staging_infra
+          execution:
+            steps:
+              - step:
+                  name: Checkout Repository
+                  identifier: checkout_repository
+                  type: GitClone
+                  spec:
+                    connectorRef: <+pipeline.properties.ci.codebase.connectorRef>
+                    repoName: <+pipeline.properties.ci.codebase.repoName>
+                    build:
+                      type: branch
+                      spec:
+                        branch: <+pipeline.variables.source_ref>
+
+              - step:
+                  name: Print Deployment Context
+                  identifier: print_deployment_context
+                  type: ShellScript
+                  spec:
+                    shell: Bash
+                    onDelegate: true
+                    source:
+                      type: Inline
+                      spec:
+                        script: |
+                          echo "Starting staging deployment"
+                          echo "Triggered by: <+pipeline.variables.triggered_by>"
+                          echo "Source ref: <+pipeline.variables.source_ref>"
+
+              - step:
+                  name: Simulate Staging Deployment
+                  identifier: simulate_staging_deployment
+                  type: ShellScript
+                  spec:
+                    shell: Bash
+                    onDelegate: true
+                    source:
+                      type: Inline
+                      spec:
+                        script: |
+                          echo "Deploying app to staging..."
+                          sleep 3
+                          echo "Staging deployment completed."
+
+              - step:
+                  name: Generate DORA Deployment Event
+                  identifier: generate_dora_event
+                  type: ShellScript
+                  spec:
+                    shell: Bash
+                    onDelegate: true
+                    source:
+                      type: Inline
+                      spec:
+                        script: |
+                          STATUS="<+pipeline.stages.staging_deployment.status>"
+                          RUN_STARTED_AT="<+pipeline.startTs>"
+                          COMPLETED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+                          RUN_URL="<+pipeline.executionUrl>"
+
+                          PAYLOAD="$(
+                            python3 scripts/dora_payload.py \
+                              --environment "staging" \
+                              --is-production "false" \
+                              --status "$STATUS" \
+                              --repo "<+pipeline.properties.ci.codebase.repoName>" \
+                              --run-id "<+pipeline.executionId>" \
+                              --run-attempt "<+pipeline.sequenceId>" \
+                              --run-number "<+pipeline.sequenceId>" \
+                              --workflow "<+pipeline.name>" \
+                              --job "staging_deployment" \
+                              --actor "<+pipeline.variables.triggered_by>" \
+                              --ref-name "<+pipeline.variables.source_ref>" \
+                              --sha "<+codebase.commitSha>" \
+                              --run-started-at "$RUN_STARTED_AT" \
+                              --completed-at "$COMPLETED_AT" \
+                              --run-url "$RUN_URL" \
+                              --github-token "<+secrets.getValue('github_token')>"
+                          )"
+
+                          echo "DORA payload:"
+                          echo "$PAYLOAD"
+                    environmentVariables: []
+                    outputVariables:
+                      - name: dora_payload
+                        type: String
+                        value: PAYLOAD
+                  timeout: 5m
+                  when:
+                    stageStatus: All
+
+            rollbackSteps:
+              - step:
+                  name: Rollback
+                  identifier: rollback
+                  type: ShellScript
+                  spec:
+                    shell: Bash
+                    onDelegate: true
+                    source:
+                      type: Inline
+                      spec:
+                        script: |
+                          echo "Rolling back staging deployment..."
+                          echo "Rollback completed."
+        tags:
+          environment: staging
+        failureStrategies:
+          - onFailure:
+              errors:
+                - AllErrors
+              action:
+                type: StageRollback

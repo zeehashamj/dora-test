@@ -20,10 +20,7 @@ def duration_seconds(start_ts: str, end_ts: str):
     return max(0, int((end - start).total_seconds()))
 
 
-def fetch_commit_timestamp(repo: str, sha: str, token: str):
-    if not repo or not sha:
-        return ""
-    url = f"https://api.github.com/repos/{repo}/commits/{sha}"
+def request_json(url: str, token: str):
     headers = {"Accept": "application/vnd.github+json"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
@@ -31,10 +28,34 @@ def fetch_commit_timestamp(repo: str, sha: str, token: str):
     req = Request(url, headers=headers, method="GET")
     try:
         with urlopen(req, timeout=10) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            return data.get("commit", {}).get("committer", {}).get("date", "")
+            return json.loads(resp.read().decode("utf-8"))
     except (HTTPError, URLError, TimeoutError, json.JSONDecodeError):
+        return None
+
+
+def fetch_commit_timestamp(repo: str, sha: str, token: str):
+    if not repo or not sha:
         return ""
+    data = request_json(f"https://api.github.com/repos/{repo}/commits/{sha}", token)
+    if not isinstance(data, dict):
+        return ""
+    return data.get("commit", {}).get("committer", {}).get("date", "")
+
+
+def fetch_associated_pr(repo: str, sha: str, token: str):
+    if not repo or not sha:
+        return None
+    data = request_json(f"https://api.github.com/repos/{repo}/commits/{sha}/pulls", token)
+    if isinstance(data, list) and len(data) > 0:
+        return data[0]
+    return None
+
+
+def fetch_first_commit_timestamp(repo: str, pr_number: int, token: str):
+    data = request_json(f"https://api.github.com/repos/{repo}/pulls/{pr_number}/commits?per_page=1", token)
+    if isinstance(data, list) and len(data) > 0:
+        return data[0].get("commit", {}).get("committer", {}).get("date", "")
+    return ""
 
 
 def parse_bool(val: str):
@@ -66,6 +87,23 @@ def main():
     lead_time = duration_seconds(commit_timestamp, args.completed_at)
     change_failure_candidate = args.status != "success"
 
+    pr = fetch_associated_pr(args.repo, args.sha, args.github_token)
+    pr_number = ""
+    pr_created_at = ""
+    pr_merged_at = ""
+    pr_first_commit_at = ""
+
+    if isinstance(pr, dict):
+        pr_number = pr.get("number", "")
+        pr_created_at = pr.get("created_at", "") or ""
+        pr_merged_at = pr.get("merged_at", "") or ""
+        if pr_number:
+            pr_first_commit_at = fetch_first_commit_timestamp(args.repo, pr_number, args.github_token)
+
+    lead_time_from_pr_open = duration_seconds(pr_created_at, args.completed_at)
+    lead_time_from_pr_merge = duration_seconds(pr_merged_at, args.completed_at)
+    lead_time_from_first_commit = duration_seconds(pr_first_commit_at, args.completed_at)
+
     payload = {
         "event_type": "deployment_finished",
         "repo": args.repo,
@@ -86,6 +124,13 @@ def main():
         "commit_timestamp": commit_timestamp,
         "deployment_duration_seconds": deployment_duration,
         "lead_time_seconds_from_commit": lead_time,
+        "pr_number": pr_number,
+        "pr_created_at": pr_created_at,
+        "pr_merged_at": pr_merged_at,
+        "pr_first_commit_at": pr_first_commit_at,
+        "lead_time_from_pr_open": lead_time_from_pr_open,
+        "lead_time_from_pr_merge": lead_time_from_pr_merge,
+        "lead_time_from_first_commit": lead_time_from_first_commit,
         "change_failure_candidate": change_failure_candidate,
     }
 
