@@ -10,36 +10,35 @@ pipeline:
     - stage:
         name: Staging Deployment
         identifier: staging_deployment
-        type: Custom
+        type: CI
         spec:
+          cloneCodebase: false
+          platform:
+            os: Linux
+            arch: Amd64
+          runtime:
+            type: Cloud
+            spec: {}
           execution:
             steps:
               - step:
                   name: Print Deployment Context
                   identifier: print_deployment_context
-                  type: ShellScript
+                  type: Run
                   spec:
                     shell: Bash
-                    onDelegate: true
-                    source:
-                      type: Inline
-                      spec:
-                        script: |
-                          echo "Starting staging deployment"
-                          echo "Branch: <+codebase.branch>"
-                          echo "Commit: <+codebase.commitSha>"
+                    command: |
+                      echo "Starting staging deployment"
+                      echo "Pipeline: <+pipeline.name>"
+                      echo "Stage: <+stage.name>"
 
               - step:
                   name: Simulate Staging Deployment
                   identifier: simulate_staging_deployment
-                  type: ShellScript
+                  type: Run
                   spec:
                     shell: Bash
-                    onDelegate: true
-                    source:
-                      type: Inline
-                      spec:
-                        script: |
-                          echo "Deploying app to staging..."
-                          sleep 3
-                          echo "Staging deployment completed."
+                    command: |
+                      echo "Deploying app to staging..."
+                      sleep 3
+                      echo "Staging deployment completed."
