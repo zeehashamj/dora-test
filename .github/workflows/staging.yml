@@ -44,32 +44,47 @@ jobs:
           COMPLETED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
-          PAYLOAD="$(
-            python3 scripts/dora_payload.py \
-              --environment "staging" \
-              --is-production "false" \
-              --status "$STATUS" \
-              --repo "${{ github.repository }}" \
-              --run-id "${{ github.run_id }}" \
-              --run-attempt "${{ github.run_attempt }}" \
-              --run-number "${{ github.run_number }}" \
-              --workflow "${{ github.workflow }}" \
-              --job "deploy" \
-              --actor "${{ github.actor }}" \
-              --ref-name "${{ github.ref_name }}" \
-              --sha "${{ github.sha }}" \
-              --run-started-at "$RUN_STARTED_AT" \
-              --completed-at "$COMPLETED_AT" \
-              --run-url "$RUN_URL" \
-              --github-token "${{ github.token }}"
-          )"
+          DORA_ARGS=(
+            --environment "staging"
+            --is-production "false"
+            --status "$STATUS"
+            --repo "${{ github.repository }}"
+            --run-id "${{ github.run_id }}"
+            --run-attempt "${{ github.run_attempt }}"
+            --run-number "${{ github.run_number }}"
+            --workflow "${{ github.workflow }}"
+            --job "deploy"
+            --actor "${{ github.actor }}"
+            --ref-name "${{ github.ref_name }}"
+            --sha "${{ github.sha }}"
+            --run-started-at "$RUN_STARTED_AT"
+            --completed-at "$COMPLETED_AT"
+            --run-url "$RUN_URL"
+            --github-token "${{ github.token }}"
+          )
+
+          PAYLOAD="$(python3 scripts/dora_payload.py "${DORA_ARGS[@]}")"
+          PROM_PAYLOAD="$(python3 scripts/dora_payload.py "${DORA_ARGS[@]}" --prometheus)"
 
           echo "DORA payload:"
           echo "$PAYLOAD"
+          echo ""
+          echo "Prometheus metrics:"
+          echo "$PROM_PAYLOAD"
+
+          mkdir -p /tmp/dora
+          echo "$PROM_PAYLOAD" > /tmp/dora/dora_metrics.prom
+
           {
             echo "## DORA Deployment Event"
             echo ""
             echo "\`\`\`json"
             echo "$PAYLOAD"
+            echo "\`\`\`"
+            echo ""
+            echo "### Prometheus Metrics"
+            echo ""
+            echo "\`\`\`"
+            echo "$PROM_PAYLOAD"
             echo "\`\`\`"
           } >> "$GITHUB_STEP_SUMMARY"

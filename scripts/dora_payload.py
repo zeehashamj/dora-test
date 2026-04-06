@@ -62,6 +62,64 @@ def parse_bool(val: str):
     return str(val).lower() in ("1", "true", "yes", "y")
 
 
+def format_prometheus(payload: dict) -> str:
+    labels = ",".join(
+        f'{k}="{v}"'
+        for k, v in {
+            "repo": payload.get("repo", ""),
+            "environment": payload.get("environment", ""),
+            "ref_name": payload.get("ref_name", ""),
+            "workflow": payload.get("workflow", ""),
+            "job": payload.get("job", ""),
+            "actor": payload.get("actor", ""),
+            "sha": payload.get("sha", ""),
+            "status": payload.get("status", ""),
+            "run_id": payload.get("run_id", ""),
+        }.items()
+    )
+
+    def metric(name, help_text, value, mtype="gauge"):
+        if value == "" or value is None:
+            return ""
+        return (
+            f"# HELP {name} {help_text}\n"
+            f"# TYPE {name} {mtype}\n"
+            f"{name}{{{labels}}} {value}\n"
+        )
+
+    ts_epoch = ""
+    if payload.get("completed_at"):
+        completed = parse_iso(payload["completed_at"])
+        if completed:
+            ts_epoch = int(completed.timestamp())
+
+    lines = [
+        metric("dora_deployment_duration_seconds",
+               "Duration of the deployment in seconds",
+               payload.get("deployment_duration_seconds")),
+        metric("dora_lead_time_from_commit_seconds",
+               "Lead time from commit to deployment completion",
+               payload.get("lead_time_seconds_from_commit")),
+        metric("dora_lead_time_from_pr_open_seconds",
+               "Lead time from PR open to deployment completion",
+               payload.get("lead_time_from_pr_open")),
+        metric("dora_lead_time_from_pr_merge_seconds",
+               "Lead time from PR merge to deployment completion",
+               payload.get("lead_time_from_pr_merge")),
+        metric("dora_lead_time_from_first_commit_seconds",
+               "Lead time from first commit in PR to deployment completion",
+               payload.get("lead_time_from_first_commit")),
+        metric("dora_change_failure",
+               "Whether this deployment is a change failure candidate (1=yes 0=no)",
+               1 if payload.get("change_failure_candidate") else 0),
+        metric("dora_deployment_timestamp_seconds",
+               "Unix timestamp of deployment completion",
+               ts_epoch),
+    ]
+
+    return "\n".join(line for line in lines if line)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Build DORA payload")
     parser.add_argument("--environment", required=True)
@@ -80,6 +138,8 @@ def main():
     parser.add_argument("--completed-at", required=True)
     parser.add_argument("--run-url", required=True)
     parser.add_argument("--github-token", default="")
+    parser.add_argument("--prometheus", action="store_true",
+                        help="Output metrics in Prometheus exposition format")
     args = parser.parse_args()
 
     commit_timestamp = fetch_commit_timestamp(args.repo, args.sha, args.github_token)
@@ -134,7 +194,10 @@ def main():
         "change_failure_candidate": change_failure_candidate,
     }
 
-    print(json.dumps(payload, indent=2))
+    if args.prometheus:
+        print(format_prometheus(payload))
+    else:
+        print(json.dumps(payload, indent=2))
 
 
 if __name__ == "__main__":
