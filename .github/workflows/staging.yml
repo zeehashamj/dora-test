@@ -74,6 +74,7 @@ jobs:
 
           mkdir -p /tmp/dora
           echo "$PROM_PAYLOAD" > /tmp/dora/dora_metrics.prom
+          cat /tmp/dora/dora_metrics.prom
 
           {
             echo "## DORA Deployment Event"
