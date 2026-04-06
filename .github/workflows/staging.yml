@@ -63,27 +63,12 @@ jobs:
             --github-token "${{ github.token }}"
           )
 
-          PAYLOAD="$(python3 scripts/dora_payload.py "${DORA_ARGS[@]}")"
           PROM_PAYLOAD="$(python3 scripts/dora_payload.py "${DORA_ARGS[@]}" --prometheus)"
 
-          echo "DORA payload:"
-          echo "$PAYLOAD"
-          echo ""
-          echo "Prometheus metrics:"
           echo "$PROM_PAYLOAD"
 
-          mkdir -p /tmp/dora
-          echo "$PROM_PAYLOAD" > /tmp/dora/dora_metrics.prom
-          cat /tmp/dora/dora_metrics.prom
-
           {
-            echo "## DORA Deployment Event"
-            echo ""
-            echo "\`\`\`json"
-            echo "$PAYLOAD"
-            echo "\`\`\`"
-            echo ""
-            echo "### Prometheus Metrics"
+            echo "## DORA Prometheus Metrics"
             echo ""
             echo "\`\`\`"
             echo "$PROM_PAYLOAD"
